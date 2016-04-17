@@ -5,6 +5,9 @@
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
+import org.joda.time.{DateTime, Days}
+import java.text.SimpleDateFormat
+import java.util.Date
 
 object SqlCount {
 
@@ -117,7 +120,7 @@ object SqlCount {
         .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid.toInt,modifiedDate),(salesquota.toDouble,maxsales.toDouble,1,minsales.toDouble))}
         .reduceByKey((x,y) => (x._1 + y._1,math.max(x._2,y._2),x._3+y._3,math.min(x._4,y._4)))
 
-    substring.foreach(println)
+    //substring.foreach(println)
 
     //SQL Query 4:-
     /*select case when TerritoryID = 2 then 'kali'     when TerritoryID = 3 then 'sri' else 'charan' end , * from [AdventureWorks2014].[dbo].[SalesPerson] ;*/
@@ -129,7 +132,101 @@ object SqlCount {
         .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,maxsales.toDouble,1,minsales.toDouble))}
         .reduceByKey((x,y) => (x._1 + y._1,math.max(x._2,y._2),x._3+y._3,math.min(x._4,y._4)))
 
-    casestatements.foreach(println)
+   //casestatements.foreach(println)
+
+    val Median=
+      noheaders
+        .map(x => x._1.split(",")).filter(x => x(8).substring(5,7) =="05")
+        .map(x => (x(1).replaceAll("NULL","0") match { case "2" => ("kali") case "3" => ("sri") case _ => ("charan")},x(2).replace("NULL","0"),x(2).replace("NULL","0"),x(1).replaceAll("NULL","0"),x(2).replaceAll("NULL","0"),x(8)))
+        .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,maxsales.toDouble,1,minsales.toDouble))}
+
+
+    def SourceFile(file:String): RDD[String] = {
+      sc.textFile(file)
+    }
+
+    val testfile=SourceFile("C:\\Users\\kalit_000\\Desktop\\2016\\scalasqlconvertcode\\sales_data.txt")
+
+    def FilterDataSet(): RDD[(String,Long)] = {
+      testfile.zipWithIndex().filter(x => x._2 > 0)
+    }
+
+
+    def sorted(x:RDD[Double]):RDD[(Long,Double)]={
+       x.zipWithIndex().map{case(v,k) => (k,v)}.coalesce(1,false).sortByKey(true)
+    }
+
+
+    val sorteddata=sorted(FilterDataSet().map(x => x._1.split(",")).map(x => (x(2).replaceAll("NULL","0").toDouble)))
+      .map{case (id,value) => (id,value)}
+
+    val countofrows=sorteddata.count()
+
+     //println(countofrows)
+
+      val maxrdd=noheaders
+        .map(x => x._1.split(",")).filter(x => x(8).substring(5,7) =="05")
+        .map(x => (x(1).replaceAll("NULL","0") match { case "2" => ("kali") case "3" => ("sri") case _ => ("charan")},x(2).replace("NULL","0"),x(2).replace("NULL","0"),x(1).replaceAll("NULL","0"),x(2).replaceAll("NULL","0"),x(8)))
+        .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,salesquota.toDouble))}
+        .reduceByKey((x,y) => (math.max(x._1,y._1),math.min(x._2,y._2)))
+
+
+   val median:Double=if (countofrows % 2 == 0) {
+      val l=countofrows/2-1
+      val r=l+1
+      (sorteddata.lookup(l).head+sorteddata.lookup(r).head).toDouble/2
+    }else (sorteddata.lookup(countofrows/2).head.toDouble)
+
+
+    val indexed=noheaders.map(x => x._1.split(","))
+      .map(x => (x(1).replaceAll("NULL","0") match { case "2" => ("kali") case "3" => ("sri") case _ => ("charan")},x(2).replace("NULL","0"),x(2).replace("NULL","0"),x(1).replaceAll("NULL","0"),x(2).replaceAll("NULL","0"),x(8)))
+      .zipWithIndex().map(x => (x._2,x._1)).coalesce(1).sortByKey().keyBy(x => x._1)
+
+      /*indexed
+      .map(x => x._1).map(x => x)
+      .map{ case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,salesquota.toDouble))}*/
+
+      //println(indexed.lookup(17))
+
+
+    def medianfunc():Double=
+    {
+      if (countofrows % 2 ==0)
+      {
+        val l=countofrows/2
+        val r=l+1
+        (sorteddata.lookup(l).head+sorteddata.lookup(r).head).toDouble/2
+      }
+      else
+        (sorteddata.lookup(countofrows/2).head.toDouble)
+    }
+
+    def qurtile():Double=
+    {
+      if (countofrows % 2 ==0)
+      {
+        val l=(countofrows/2)/2
+        val r=l+1
+        (sorteddata.lookup(l).head+sorteddata.lookup(r).head).toDouble/2
+      }
+      else
+        (sorteddata.lookup((countofrows/2)/2).head.toDouble)
+    }
+
+    val format = new SimpleDateFormat("yyyy-M-dd")
+    val nowminus180 = DateTime.now.minusDays(600)
+    println(format.format(nowminus180.toDate))//2015-10-19
+
+    //SQL Query 4:-
+    /*select * from [AdventureWorks2014].[dbo].[SalesPerson]  where ModifiedDate <= GETDATE()-600;*/
+
+    val filterdate=noheaders
+      .map(x => x._1.split(",")).filter(x => (x(8).substring(0,10) < nowminus180.toString()))
+      .map(x => (x(1).replaceAll("NULL","0") match { case "2" => ("kali") case "3" => ("sri") case _ => ("charan")},x(2).replace("NULL","0"),x(2).replace("NULL","0"),x(1).replaceAll("NULL","0"),x(2).replaceAll("NULL","0"),x(8).substring(0,10)))
+      .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,salesquota.toDouble))}
+      .reduceByKey((x,y) => (math.max(x._1,y._1),math.min(x._2,y._2)))
+
+    filterdate.foreach(println)
 
 
     sc.stop()
