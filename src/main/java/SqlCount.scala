@@ -4,10 +4,12 @@
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkContext, SparkConf}
 import org.joda.time.{DateTime, Days}
 import java.text.SimpleDateFormat
 import java.util.Date
+import com.databricks.spark.xml
 
 object SqlCount {
 
@@ -40,7 +42,7 @@ object SqlCount {
    val quotegroupby=
      noheaders
      .map(x => x._1.split(",")).map(x => (x(1).replaceAll("NULL","0"),x(2).replace("NULL","0")))
-     .map{case(territoryid,salesquota) => ((territoryid,salesquota.toDouble))}
+     .map{case(territoryid,salesquota) => (territoryid,salesquota.toDouble)}
      .reduceByKey((x,y) => (x+y))
 
     //quotegroupby.foreach(println)
@@ -94,7 +96,7 @@ object SqlCount {
     val airportsmap=sc.broadcast(airports.map{ case(a,b,c,d) => (a,b)}.collectAsMap())
     val airlinesmap=sc.broadcast(airlines.collectAsMap())
 
-    val test=flights.map{ case (a,b,c,d,e) => (airportsmap.value.get(a).get, airportsmap.value.get(b).get,airlinesmap.value.get(c).get,d,e) }
+    val test=flights.map{ case (a,b,c,d,e) => (airportsmap.value.getOrElse(a,0), airportsmap.value.get(b).get,airlinesmap.value.get(c).get,d,e) }
 
     //test.foreach(println)
 
@@ -226,7 +228,24 @@ object SqlCount {
       .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,salesquota.toDouble))}
       .reduceByKey((x,y) => (math.max(x._1,y._1),math.min(x._2,y._2)))
 
-    filterdate.foreach(println)
+    //filterdate.foreach(println)
+
+    //HASHMAP to get lastest key
+
+    val hashmapdate=noheaders
+                    .map(x => x._1.split(",")).filter(x => (x(1) =="1"))
+                    .map(x => (x(1).replaceAll("NULL","0"),x(2).replaceAll("NULL","0")))
+                    .map{ case (territoryid,salesquota) => (territoryid,salesquota)}
+                    .reduceByKey((x,y) => y).foreach(println)
+
+    /*XML parsing*/
+   // val sqlcontext=new SQLContext(sc)
+
+    //val file=sqlcontext.read.format("xml").option("rowtag","book").load("C:\\Users\\kalit_000\\Desktop\\2016\\scalasqlconvertcode\\books.xml")
+
+
+
+
 
 
     sc.stop()
