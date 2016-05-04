@@ -131,10 +131,14 @@ object SqlCount {
       noheaders
         .map(x => x._1.split(",")).filter(x => x(8).substring(5,7) =="05")
         .map(x => (x(1).replaceAll("NULL","0") match { case "2" => ("kali") case "3" => ("sri") case _ => ("charan")},x(2).replace("NULL","0"),x(2).replace("NULL","0"),x(1).replaceAll("NULL","0"),x(2).replaceAll("NULL","0"),x(8)))
-        .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,maxsales.toDouble,1,minsales.toDouble))}
-        .reduceByKey((x,y) => (x._1 + y._1,math.max(x._2,y._2),x._3+y._3,math.min(x._4,y._4)))
+        .map{case (territoryid,salesquota,maxsales,countofterritoryid,minsales,modifiedDate) => ((territoryid,modifiedDate),(salesquota.toDouble,maxsales.toDouble,1,minsales.toDouble,0.toDouble))}
+        .reduceByKey((x,y) => (x._1 + y._1,math.max(x._2,y._2),x._3+y._3,math.min(x._4,y._4),(x._1 + y._1)/(x._3+y._3)))
 
-   //casestatements.foreach(println)
+
+
+
+
+   casestatements.foreach(println)
 
     val Median=
       noheaders
